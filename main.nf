@@ -24,8 +24,14 @@ workflow {
     VALIDATE_SAMPLESHEET(samplesheet_ch)
     validated_ch = VALIDATE_SAMPLESHEET.out.samplesheet
     idat_ch = validated_ch.splitCsv(header: true).map { row ->
-        def clean = row.sample_id.toString().replaceAll(/[^A-Za-z0-9._-]/, '_')
-        tuple(row.sample_id.toString(), file(row.idat_red), file(row.idat_green), clean)
+        def sampleId = row['sample_id']
+        def redIdat = row['idat_red']
+        def greenIdat = row['idat_green']
+        if( !sampleId || !redIdat || !greenIdat ) {
+            error "Validated samplesheet row is missing sample_id, idat_red, or idat_green: ${row}"
+        }
+        def clean = sampleId.toString().replaceAll(/[^A-Za-z0-9._-]/, '_')
+        tuple(sampleId.toString(), file(redIdat.toString()), file(greenIdat.toString()), clean)
     }
     PREPROCESS_IDAT(idat_ch)
     BUILD_COHORT(PREPROCESS_IDAT.out.objects.collect(), validated_ch)
