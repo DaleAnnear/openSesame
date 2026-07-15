@@ -1,13 +1,16 @@
-FROM bioconductor/bioconductor_docker:RELEASE_3_18
+FROM bioconductor/bioconductor_docker:RELEASE_3_20
 
-# Install required R packages: sesame, sesameData, and optparse
-RUN R -e "BiocManager::install(c('sesame', 'sesameData', 'optparse', 'ExperimentHub', 'AnnotationHub'))"
+LABEL org.opencontainers.image.source="https://github.com/DaleAnnear/openSesame"
 
-# Cache SeSAMe data for EPICv2 arrays to speed up the pipeline
-RUN R -e "library(sesameData); sesameDataCacheAll()"
+RUN R -q -e "BiocManager::install(version='3.20', ask=FALSE); BiocManager::install(c('sesame','sesameData','SummarizedExperiment','limma','DMRcate','EPICv2manifest','IlluminaHumanMethylationEPICv2anno.20a1.hg38'), ask=FALSE, update=FALSE)" \
+ && R -q -e "install.packages(c('optparse','jsonlite'), repos='https://cloud.r-project.org')" \
+ && mkdir -p /home/rstudio/.cache/R/ExperimentHub \
+ && chown -R rstudio:rstudio /home/rstudio/.cache
 
-# Create directories for data and scripts
-RUN mkdir -p /data /scripts
+# Nextflow runs containers with the host UID (normally 1000/rstudio). Cache
+# SeSAMe resources for that user, not only for the Docker build's root user.
+USER rstudio
+RUN R -q -e "library(sesameData); sesameDataCacheAll()"
 
-# Set working directory
-WORKDIR /data
+USER root
+WORKDIR /work

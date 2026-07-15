@@ -1,0 +1,20 @@
+#!/usr/bin/env Rscript
+args <- commandArgs(trailingOnly=TRUE)
+take <- function(x) { i <- match(x,args); if(is.na(i)||i==length(args)) stop('Missing value for ',x); args[i+1] }
+inp <- take('--input'); out <- take('--output'); manifest <- take('--manifest')
+x <- tryCatch(read.csv(inp, check.names=FALSE, stringsAsFactors=FALSE, na.strings=c('', 'NA')), error=function(e) stop('Cannot read samplesheet: ',e$message))
+required <- c('sample_id','idat_red','idat_green'); missing <- setdiff(required,names(x)); if(length(missing)) stop('Missing required column(s): ',paste(missing,collapse=', '))
+if(!nrow(x)) stop('Samplesheet has no rows')
+for(n in required) if(any(is.na(x[[n]])|trimws(x[[n]])=='')) stop('Required value missing in column ',n)
+x$sample_id <- trimws(x$sample_id); if(anyDuplicated(x$sample_id)) stop('sample_id values must be unique: ',paste(unique(x$sample_id[duplicated(x$sample_id)]),collapse=', '))
+x$idat_red <- normalizePath(trimws(x$idat_red), mustWork=FALSE); x$idat_green <- normalizePath(trimws(x$idat_green), mustWork=FALSE)
+for(i in seq_len(nrow(x))) { for(n in c('idat_red','idat_green')) if(!file.exists(x[[n]][i])) stop('Sample ',x$sample_id[i],': ',n,' does not exist: ',x[[n]][i]) }
+if(anyDuplicated(c(x$idat_red,x$idat_green))) stop('Each IDAT file may be assigned once only')
+isred <- grepl('(_Red|_red)\\.idat(\\.gz)?$',x$idat_red); isgreen <- grepl('(_Grn|_Green|_grn|_green)\\.idat(\\.gz)?$',x$idat_green)
+if(any(!isred)|any(!isgreen)) stop('Malformed pairing: red files must end _Red.idat[.gz] and green files _Grn.idat[.gz]')
+prefix <- function(z) sub('_(Red|red|Grn|Green|grn|green)\\.idat(\\.gz)?$','',z)
+if(any(prefix(x$idat_red)!=prefix(x$idat_green))) stop('Malformed pairing: red and green basenames do not share an IDAT prefix')
+write.csv(x,out,row.names=FALSE,na='')
+checks <- unname(tools::md5sum(unique(c(x$idat_red,x$idat_green))))
+esc <- function(z) gsub('"','\\\\"',z,fixed=TRUE)
+writeLines(c('{',paste0('  "samples": ',nrow(x),','),paste0('  "input_checksums": ["',paste(checks,collapse='","'),'"]'),'}'),manifest)

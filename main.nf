@@ -1,37 +1,47 @@
 #!/usr/bin/env nextflow
 
-nextflow.enable.dsl=2
+nextflow.enable.dsl = 2
 
-// Define default parameters
-params.input = "data/*_{Grn,Red}.idat"
-params.outdir = "results"
-
-process processIdats {
-    // Publish results to the specified output directory
-    publishDir "${params.outdir}", mode: 'copy'
-
-    input:
-    tuple val(sample_id), path(idats)
-
-    output:
-    path "${sample_id}_betas.csv"
-
-    script:
-    // We expect the files to have the same prefix. The prefix is the part before _Grn.idat or _Red.idat.
-    // It should be passed to the R script.
-    // Because Nextflow stages files with their original names (if not renamed),
-    // we can use sample_id as the prefix since it is the paired prefix.
-    """
-    process_idats.R --prefix ${sample_id} --output ${sample_id}_betas.csv
-    """
-}
+include { VALIDATE_SAMPLESHEET } from './modules/local/validate_samplesheet'
+include { CREATE_LEGACY_SAMPLESHEET } from './modules/local/create_legacy_samplesheet'
+include { PREPROCESS_IDAT } from './modules/local/preprocess_idat'
+include { BUILD_COHORT } from './modules/local/build_cohort'
+include { SAMPLE_QC } from './modules/local/sample_qc'
+include { FILTER_PROBES } from './modules/local/filter_probes'
+include { DIFFERENTIAL_METHYLATION } from './modules/local/differential_methylation'
+include { DIFFERENTIAL_REGIONS } from './modules/local/differential_regions'
+include { COHORT_REPORT } from './modules/local/cohort_report'
 
 workflow {
-    // Input channel for IDAT pairs
-    // The file pairing matches a common prefix and checks for both Grn and Red files
-    Channel
-        .fromFilePairs(params.input, size: 2)
-        .set { idat_pairs_ch }
-
-    processIdats(idat_pairs_ch)
+    if( !params.input && !params.input_glob ) error "Provide --input <samplesheet.csv> (preferred) or deprecated --input_glob."
+    if( params.input && params.input_glob ) error "Use only one of --input and --input_glob."
+    samplesheet_ch = params.input ? Channel.fromPath(params.input, checkIfExists: true) : null
+    if( params.input_glob ) {
+        log.warn "--input_glob is deprecated; use a samplesheet with sample_id,idat_red,idat_green."
+        CREATE_LEGACY_SAMPLESHEET(Channel.fromPath(params.input_glob, checkIfExists: true).collect())
+        samplesheet_ch = CREATE_LEGACY_SAMPLESHEET.out.samplesheet
+    }
+    VALIDATE_SAMPLESHEET(samplesheet_ch)
+    validated_ch = VALIDATE_SAMPLESHEET.out.samplesheet
+    idat_ch = validated_ch.splitCsv(header: true).map { row ->
+        def fields = row.collectEntries { key, value ->
+            [(key.toString().trim().replaceAll(/^"|"$/, '')): value?.toString()?.trim()?.replaceAll(/^"|"$/, '')]
+        }
+        def sampleId = fields['sample_id']
+        def redIdat = fields['idat_red']
+        def greenIdat = fields['idat_green']
+        if( !sampleId || !redIdat || !greenIdat ) error "Validated samplesheet row is missing sample_id, idat_red, or idat_green: ${fields}"
+        def clean = sampleId.replaceAll(/[^A-Za-z0-9._-]/, '_')
+        tuple(sampleId, file(redIdat), file(greenIdat), clean)
+    }
+    PREPROCESS_IDAT(idat_ch)
+    sample_objects_ch = PREPROCESS_IDAT.out.objects.map { sample_id, object_file -> object_file }.collect()
+    BUILD_COHORT(sample_objects_ch, validated_ch)
+    SAMPLE_QC(BUILD_COHORT.out.analysis, BUILD_COHORT.out.beta, BUILD_COHORT.out.mvalue, BUILD_COHORT.out.detection, validated_ch)
+    FILTER_PROBES(BUILD_COHORT.out.analysis, BUILD_COHORT.out.beta, BUILD_COHORT.out.mvalue, BUILD_COHORT.out.detection)
+    if( params.find_dmps ) {
+        DIFFERENTIAL_METHYLATION(FILTER_PROBES.out.analysis, FILTER_PROBES.out.beta, FILTER_PROBES.out.mvalue, validated_ch)
+        if( params.find_dmrs ) DIFFERENTIAL_REGIONS(DIFFERENTIAL_METHYLATION.out.complete, FILTER_PROBES.out.analysis, validated_ch)
+    } else if( params.find_dmrs ) error "--find_dmrs requires --find_dmps true because regions reuse the validated DMP model."
+    COHORT_REPORT(VALIDATE_SAMPLESHEET.out.manifest, SAMPLE_QC.out.qc, SAMPLE_QC.out.exclusions, FILTER_PROBES.out.summary)
 }

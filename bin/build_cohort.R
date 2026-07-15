@@ -1,0 +1,8 @@
+#!/usr/bin/env Rscript
+args<-commandArgs(trailingOnly=TRUE);get<-function(k){i<-match(k,args);if(is.na(i))stop('Missing ',k);args[i+1]};ss<-read.csv(get('--samplesheet'),check.names=FALSE,stringsAsFactors=FALSE);out<-get('--outdir');dir.create(out,recursive=TRUE,showWarnings=FALSE)
+object_files<-args[grepl('\\.rds$',args)];objs<-lapply(object_files,readRDS);if(!length(objs))stop('No sample RDS objects supplied')
+ids<-vapply(objs,`[[`,'','sample_id');if(!setequal(ids,ss$sample_id))stop('Sample objects do not match samplesheet');probes<-Reduce(intersect,lapply(objs,function(z)names(z$beta)));if(!length(probes))stop('No common probes')
+mk<-function(slot)do.call(cbind,lapply(objs,function(z)z[[slot]][probes]));beta<-mk('beta');mval<-mk('mvalue');det<-mk('detection');colnames(beta)<-colnames(mval)<-colnames(det)<-ids
+write_gz<-function(x,n){con<-gzfile(file.path(out,n),'wt');write.table(cbind(probe_id=rownames(x),x),con,sep='\t',row.names=FALSE,quote=FALSE);close(con)};write_gz(beta,'beta_values.tsv.gz');write_gz(mval,'m_values.tsv.gz');write_gz(det,'detection_metrics.tsv.gz')
+annotation<-data.frame(probe_id=probes,stringsAsFactors=FALSE);write_gz(as.matrix(annotation),'probe_annotation.tsv.gz');meta<-ss[match(ids,ss$sample_id),,drop=FALSE];write.table(meta,file.path(out,'sample_metadata.tsv'),sep='\t',row.names=FALSE,quote=FALSE)
+obj<-list(beta=beta,mvalue=mval,detection=det,annotation=annotation,metadata=meta,unfiltered=TRUE);if(requireNamespace('SummarizedExperiment',quietly=TRUE))obj<-SummarizedExperiment::SummarizedExperiment(assays=list(beta=beta,mvalue=mval,detection=det),colData=S4Vectors::DataFrame(meta),rowData=S4Vectors::DataFrame(annotation));saveRDS(obj,file.path(out,'analysis_unfiltered.rds'))
