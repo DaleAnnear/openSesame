@@ -30,14 +30,13 @@ workflow {
         def sampleId = fields['sample_id']
         def redIdat = fields['idat_red']
         def greenIdat = fields['idat_green']
-        if( !sampleId || !redIdat || !greenIdat ) {
-            error "Validated samplesheet row is missing sample_id, idat_red, or idat_green: ${fields}"
-        }
+        if( !sampleId || !redIdat || !greenIdat ) error "Validated samplesheet row is missing sample_id, idat_red, or idat_green: ${fields}"
         def clean = sampleId.replaceAll(/[^A-Za-z0-9._-]/, '_')
         tuple(sampleId, file(redIdat), file(greenIdat), clean)
     }
     PREPROCESS_IDAT(idat_ch)
-    BUILD_COHORT(PREPROCESS_IDAT.out.objects.collect(), validated_ch)
+    sample_objects_ch = PREPROCESS_IDAT.out.objects.map { sample_id, object_file -> object_file }.collect()
+    BUILD_COHORT(sample_objects_ch, validated_ch)
     SAMPLE_QC(BUILD_COHORT.out.analysis, BUILD_COHORT.out.beta, BUILD_COHORT.out.mvalue, BUILD_COHORT.out.detection, validated_ch)
     FILTER_PROBES(BUILD_COHORT.out.analysis, BUILD_COHORT.out.beta, BUILD_COHORT.out.mvalue, BUILD_COHORT.out.detection)
     if( params.find_dmps ) {
