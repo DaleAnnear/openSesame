@@ -1,0 +1,1 @@
+{"required_columns":["sample_id","idat_red","idat_green"],"optional_columns":["group","sex","age","batch","plate","array","position","subject_id","pair_id"],"additional_columns":"preserved"}

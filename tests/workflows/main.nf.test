@@ -1,0 +1,8 @@
+nextflow_pipeline {
+    name 'openSesame validates an input interface'
+    script '../main.nf'
+    test('requires input') {
+        when { params { } }
+        then { assert workflow.failed }
+    }
+}

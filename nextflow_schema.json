@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "openSesame parameters",
+  "type": "object",
+  "properties": {
+    "input": {"type":"string","description":"CSV samplesheet with sample_id,idat_red,idat_green."},
+    "input_glob": {"type":"string","description":"Deprecated IDAT glob; internally converted to a samplesheet."},
+    "outdir": {"type":"string","default":"results","description":"Output directory."},
+    "platform": {"type":"string","enum":["EPICv2"],"default":"EPICv2","description":"Requested verified array platform."},
+    "sesame_prep_code": {"type":"string","pattern":"^[QCDPBHT]+$","default":"QCDPB","description":"Explicit SeSAMe prepSesame code."},
+    "min_detection_rate": {"type":"number","minimum":0,"maximum":1,"default":0.95,"description":"Minimum per-probe/sample call rate."},
+    "max_missing_rate": {"type":"number","minimum":0,"maximum":1,"default":0.05,"description":"Maximum beta missingness per probe."},
+    "auto_exclude_samples": {"type":"boolean","default":false,"description":"Apply rather than only propose QC exclusions."},
+    "find_dmps": {"type":"boolean","default":false,"description":"Run limma DMP analysis on M-values."},
+    "find_dmrs": {"type":"boolean","default":false,"description":"Run the validated EPICv2 DMR gate after DMPs."},
+    "design": {"type":"string","default":"~ 0 + group","description":"R model formula using samplesheet columns."},
+    "contrast": {"type":"string","description":"Comma-separated limma contrasts, e.g. groupDisease-groupControl."},
+    "fdr": {"type":"number","minimum":0,"maximum":1,"default":0.05,"description":"Benjamini-Hochberg threshold."},
+    "min_abs_delta_beta": {"type":"number","minimum":0,"maximum":1,"default":0.05,"description":"Minimum absolute delta beta."},
+    "run_cell_composition": {"type":"boolean","default":false,"description":"Reserved for a validated user reference workflow; disabled by default."},
+    "cell_reference": {"type":"string","description":"User-supplied validated reference matrix/object."},
+    "batch_correction": {"type":"string","enum":["none"],"default":"none","description":"Known batches should be included in --design; correction is not yet enabled."}
+  },
+  "allOf":[{"not":{"required":["input","input_glob"]}}]
+}

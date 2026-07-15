@@ -1,0 +1,5 @@
+custom_data:
+  opensesame_general_stats:
+    file_format: tsv
+    section_name: 'openSesame cohort QC'
+    plot_type: 'generalstats'

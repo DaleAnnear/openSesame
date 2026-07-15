@@ -1,0 +1,3 @@
+sample_id,idat_red,idat_green,group,sex,batch
+Disease_1,REPLACE_WITH_PUBLIC_TESTDATA_Red.idat,REPLACE_WITH_PUBLIC_TESTDATA_Grn.idat,Disease,F,1
+Control_1,REPLACE_WITH_PUBLIC_TESTDATA_Red.idat,REPLACE_WITH_PUBLIC_TESTDATA_Grn.idat,Control,M,1
