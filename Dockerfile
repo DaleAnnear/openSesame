@@ -10,6 +10,7 @@ RUN R -q -e "BiocManager::install(version='3.20', ask=FALSE); BiocManager::insta
  && R -q -e "install.packages(c('optparse','jsonlite'), repos='https://cloud.r-project.org')" \
  && mkdir -p /opt/sesame-cache \
  && R -q -e "library(sesameData); sesameDataCacheAll()" \
+ && R -q -e "library(AnnotationHub); ah <- AnnotationHub(); ah[['AH116484']]" \
  && chmod -R a+rwX /opt/sesame-cache \
  && rm -rf /tmp/*
 
