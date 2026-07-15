@@ -1,5 +1,7 @@
 # openSesame
 
+![openSesame logo](assets/logo.png)
+
 `openSesame` is a modular Nextflow DSL2 workflow for Illumina methylation IDATs, using SeSAMe as its primary preprocessing engine. Its supported target is MethylationEPIC v2.0 (EPICv2); support is deliberately conservative and is recorded in [the feature-parity matrix](docs/feature_parity.md).
 
 ## Quick start
