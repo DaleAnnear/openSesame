@@ -12,8 +12,8 @@ include { DIFFERENTIAL_METHYLATION } from './modules/local/differential_methylat
 include { DIFFERENTIAL_REGIONS } from './modules/local/differential_regions'
 include { COHORT_REPORT } from './modules/local/cohort_report'
 
-def asBoolean = { input ->
-    input instanceof Boolean ? input : (input != null && input.toString().trim().equalsIgnoreCase('true'))
+def asBoolean = { raw ->
+    raw instanceof Boolean ? raw : (raw != null && raw.toString().trim().equalsIgnoreCase('true'))
 }
 
 workflow {
