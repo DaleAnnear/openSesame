@@ -11,6 +11,7 @@ process DIFFERENTIAL_METHYLATION {
     path 'dmp/complete', emit: complete
     path 'dmp/significant', emit: significant
     path 'dmp/model_definitions.tsv', emit: model
+    path 'dmp/dmp_testability_summary.tsv', emit: testability
     script:
-    """differential_methylation.R --analysis ${analysis} --samplesheet ${samplesheet} --outdir dmp --design '${params.design}' --contrast '${params.contrast}' --fdr ${params.fdr} --min-abs-delta-beta ${params.min_abs_delta_beta}"""
+    """differential_methylation.R --implementation-version 2 --analysis ${analysis} --samplesheet ${samplesheet} --outdir dmp --design '${params.design}' --contrast '${params.contrast}' --fdr ${params.fdr} --min-abs-delta-beta ${params.min_abs_delta_beta}"""
 }
