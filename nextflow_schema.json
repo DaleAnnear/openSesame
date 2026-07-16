@@ -16,7 +16,7 @@
     "design": {"type":"string","default":"~ 0 + group","description":"R model formula using samplesheet columns."},
     "contrast": {"type":"string","description":"Comma-separated limma/DMRcate contrasts, e.g. groupDisease-groupControl."},
     "fdr": {"type":"number","minimum":0,"maximum":1,"default":0.05,"description":"DMP Benjamini-Hochberg threshold."},
-    "min_abs_delta_beta": {"type":"number","minimum":0,"maximum":1,"default":0.05,"description":"Minimum absolute DMP/DMR delta beta."},
+    "min_abs_delta_beta": {"type":"number","minimum":0,"maximum":1,"default":0.05,"description":"Minimum absolute beta-scale effect size: observed group delta beta for DMPs and DMRcate meandiff for DMRs."},
     "dmr_bandwidth": {"type":"number","exclusiveMinimum":0,"default":1000,"description":"DMRcate smoothing bandwidth (lambda, bp)."},
     "dmr_scaling": {"type":"number","exclusiveMinimum":0,"default":2,"description":"DMRcate scaling factor (C)."},
     "dmr_min_probes": {"type":"integer","minimum":2,"default":3,"description":"Minimum CpGs required in a reported DMR."},

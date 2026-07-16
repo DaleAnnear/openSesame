@@ -19,17 +19,41 @@ contrast <- get("--contrast"); if (contrast == "" || is.na(contrast)) stop("--co
 cts <- trimws(strsplit(contrast, ",", fixed = TRUE)[[1]]); cm <- limma::makeContrasts(contrasts = cts, levels = design)
 
 # Statistical inference is on M-values. The paired beta-scale fit uses the same
-# design and contrast solely to report covariate-adjusted, interpretable delta beta.
+# design and contrast to report a covariate-adjusted estimate. Ordinary least
+# squares is unconstrained, so that estimate can lie outside [-1, 1] and must not
+# be interpreted as a literal difference between observed beta values.
 fit <- limma::eBayes(limma::contrasts.fit(limma::lmFit(m, design), cm)); beta_fit <- limma::contrasts.fit(limma::lmFit(b, design), cm)
 fdr <- as.numeric(get("--fdr")); dbthr <- as.numeric(get("--min-abs-delta-beta"))
 write.table(data.frame(design = get("--design"), contrast = cts), file.path(out, "model_definitions.tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
 
-group_summary <- function(result, contrast_name) {
-  if (!"group" %in% names(ss)) return(result)
-  terms <- strsplit(contrast_name, "-", fixed = TRUE)[[1]]; group_columns <- paste0("group", make.names(as.character(unique(ss$group))))
-  labels <- as.character(unique(ss$group)); names(labels) <- group_columns
-  if (length(terms) != 2 || !all(terms %in% names(labels))) return(result)
-  for (term in terms) { label <- labels[[term]]; ids <- ss$group == label; suffix <- gsub("[^A-Za-z0-9._-]", "_", label); result[[paste0("mean_beta_", suffix)]] <- rowMeans(b[result$probe_id, ids, drop = FALSE], na.rm = TRUE); result[[paste0("n_", suffix)]] <- sum(ids) }
+group_contrast <- function(contrast_name) {
+  if (!"group" %in% names(ss)) return(NULL)
+  terms <- strsplit(contrast_name, "-", fixed = TRUE)[[1]]
+  labels <- as.character(unique(ss$group))
+  names(labels) <- paste0("group", make.names(labels))
+  if (length(terms) != 2L || !all(terms %in% names(labels))) return(NULL)
+  unname(labels[terms])
+}
+
+add_observed_group_delta <- function(result, contrast_name) {
+  labels <- group_contrast(contrast_name)
+  result$delta_beta_observed <- NA_real_
+  if (is.null(labels)) return(result)
+
+  means <- lapply(labels, function(label) {
+    ids <- ss$group == label
+    rowMeans(b[result$probe_id, ids, drop = FALSE], na.rm = TRUE)
+  })
+  names(means) <- labels
+  for (label in labels) {
+    suffix <- gsub("[^A-Za-z0-9._-]", "_", label)
+    result[[paste0("mean_beta_", suffix)]] <- means[[label]]
+    result[[paste0("n_", suffix)]] <- sum(ss$group == label)
+  }
+  # The contrast is numerator minus denominator, matching limma's contrast
+  # notation. This is a difference of observed beta means and is bounded to
+  # [-1, 1] whenever both group means are available.
+  result$delta_beta_observed <- means[[1L]] - means[[2L]]
   result
 }
 
@@ -41,9 +65,16 @@ for (ct in colnames(cm)) {
   summary_rows[[ct]] <- data.frame(contrast = ct, input_probes = nrow(m), testable_probes = sum(testable), excluded_nonestimable = sum(!testable), stringsAsFactors = FALSE)
   if (!any(testable)) stop("No probes have estimable statistics for contrast ", ct, ". This usually indicates excessive masking or insufficient non-missing values in one or more design groups; inspect detection metrics and relax filters only with scientific justification.")
   z <- limma::topTable(fit[testable, ], coef = ct, number = Inf, sort.by = "P")
-  z$probe_id <- rownames(z); z$delta_beta <- beta_fit$coefficients[match(z$probe_id, rownames(beta_fit$coefficients)), ct]
-  z <- group_summary(z, ct); safe <- gsub("[^A-Za-z0-9._-]", "_", ct)
-  keep <- !is.na(z$adj.P.Val) & z$adj.P.Val <= fdr & !is.na(z$delta_beta) & abs(z$delta_beta) >= dbthr
+  z$probe_id <- rownames(z)
+  z$delta_beta_adjusted <- beta_fit$coefficients[match(z$probe_id, rownames(beta_fit$coefficients)), ct]
+  z <- add_observed_group_delta(z, ct)
+  safe <- gsub("[^A-Za-z0-9._-]", "_", ct)
+  if (all(is.na(z$delta_beta_observed))) {
+    stop("Cannot calculate a bounded observed delta beta for contrast ", ct,
+         ". Use a two-group contrast of the form group<case>-group<reference> ",
+         "with group labels matching the samplesheet.")
+  }
+  keep <- !is.na(z$adj.P.Val) & z$adj.P.Val <= fdr & !is.na(z$delta_beta_observed) & abs(z$delta_beta_observed) >= dbthr
   write.table(z, file.path(out, "complete", paste0(safe, ".tsv")), sep = "\t", row.names = FALSE, quote = FALSE)
   write.table(z[keep, , drop = FALSE], file.path(out, "significant", paste0(safe, ".tsv")), sep = "\t", row.names = FALSE, quote = FALSE)
 }
