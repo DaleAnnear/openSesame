@@ -12,10 +12,6 @@ include { DIFFERENTIAL_METHYLATION } from './modules/local/differential_methylat
 include { DIFFERENTIAL_REGIONS } from './modules/local/differential_regions'
 include { COHORT_REPORT } from './modules/local/cohort_report'
 
-def asBoolean = { raw ->
-    raw instanceof Boolean ? raw : (raw != null && raw.toString().trim().equalsIgnoreCase('true'))
-}
-
 workflow {
     if( !params.input && !params.input_glob ) error "Provide --input <samplesheet.csv> (preferred) or deprecated --input_glob."
     if( params.input && params.input_glob ) error "Use only one of --input and --input_glob."
@@ -39,8 +35,8 @@ workflow {
     BUILD_COHORT(sample_objects_ch, validated_ch)
     SAMPLE_QC(BUILD_COHORT.out.analysis, BUILD_COHORT.out.beta, BUILD_COHORT.out.mvalue, BUILD_COHORT.out.detection, validated_ch)
     FILTER_PROBES(BUILD_COHORT.out.analysis, BUILD_COHORT.out.beta, BUILD_COHORT.out.mvalue, BUILD_COHORT.out.detection)
-    run_dmps = asBoolean(params.find_dmps)
-    run_dmrs = asBoolean(params.find_dmrs)
+    run_dmps = params.find_dmps.toString().toBoolean()
+    run_dmrs = params.find_dmrs.toString().toBoolean()
     if( run_dmps ) {
         DIFFERENTIAL_METHYLATION(FILTER_PROBES.out.analysis, FILTER_PROBES.out.beta, FILTER_PROBES.out.mvalue, validated_ch)
         if( run_dmrs ) DIFFERENTIAL_REGIONS(DIFFERENTIAL_METHYLATION.out.complete, FILTER_PROBES.out.analysis, validated_ch)
