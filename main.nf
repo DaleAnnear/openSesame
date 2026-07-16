@@ -12,7 +12,9 @@ include { DIFFERENTIAL_METHYLATION } from './modules/local/differential_methylat
 include { DIFFERENTIAL_REGIONS } from './modules/local/differential_regions'
 include { COHORT_REPORT } from './modules/local/cohort_report'
 
-booleanParam = { value -> value instanceof Boolean ? value : value?.toString()?.trim()?.toBoolean() ?: false }
+def asBoolean = { input ->
+    input instanceof Boolean ? input : (input != null && input.toString().trim().equalsIgnoreCase('true'))
+}
 
 workflow {
     if( !params.input && !params.input_glob ) error "Provide --input <samplesheet.csv> (preferred) or deprecated --input_glob."
@@ -26,7 +28,7 @@ workflow {
     VALIDATE_SAMPLESHEET(samplesheet_ch)
     validated_ch = VALIDATE_SAMPLESHEET.out.samplesheet
     idat_ch = validated_ch.splitCsv(header: true).map { row ->
-        def fields = row.collectEntries { key, value -> [(key.toString().trim().replaceAll(/^"|"$/, '')): value?.toString()?.trim()?.replaceAll(/^"|"$/, '')] }
+        def fields = row.collectEntries { key, entry -> [(key.toString().trim().replaceAll(/^"|"$/, '')): entry?.toString()?.trim()?.replaceAll(/^"|"$/, '')] }
         def sampleId = fields['sample_id']; def redIdat = fields['idat_red']; def greenIdat = fields['idat_green']
         if( !sampleId || !redIdat || !greenIdat ) error "Validated samplesheet row is missing sample_id, idat_red, or idat_green: ${fields}"
         def clean = sampleId.replaceAll(/[^A-Za-z0-9._-]/, '_')
@@ -37,8 +39,8 @@ workflow {
     BUILD_COHORT(sample_objects_ch, validated_ch)
     SAMPLE_QC(BUILD_COHORT.out.analysis, BUILD_COHORT.out.beta, BUILD_COHORT.out.mvalue, BUILD_COHORT.out.detection, validated_ch)
     FILTER_PROBES(BUILD_COHORT.out.analysis, BUILD_COHORT.out.beta, BUILD_COHORT.out.mvalue, BUILD_COHORT.out.detection)
-    run_dmps = booleanParam(params.find_dmps)
-    run_dmrs = booleanParam(params.find_dmrs)
+    run_dmps = asBoolean(params.find_dmps)
+    run_dmrs = asBoolean(params.find_dmrs)
     if( run_dmps ) {
         DIFFERENTIAL_METHYLATION(FILTER_PROBES.out.analysis, FILTER_PROBES.out.beta, FILTER_PROBES.out.mvalue, validated_ch)
         if( run_dmrs ) DIFFERENTIAL_REGIONS(DIFFERENTIAL_METHYLATION.out.complete, FILTER_PROBES.out.analysis, validated_ch)
