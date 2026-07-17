@@ -26,13 +26,24 @@ fit <- limma::eBayes(limma::contrasts.fit(limma::lmFit(m, design), cm)); beta_fi
 fdr <- as.numeric(get("--fdr")); dbthr <- as.numeric(get("--min-abs-delta-beta"))
 write.table(data.frame(design = get("--design"), contrast = cts), file.path(out, "model_definitions.tsv"), sep = "\t", row.names = FALSE, quote = FALSE)
 
+# Use R's actual group-only model-matrix names to map contrast terms back to
+# samplesheet labels. make.names() is not appropriate here: model.matrix()
+# preserves labels beginning with digits (e.g. group547X), whereas make.names()
+# would incorrectly create groupX547X.
+group_term_labels <- if ("group" %in% names(ss)) {
+  group_design <- model.matrix(~ 0 + group, data = ss)
+  labels <- vapply(seq_len(ncol(group_design)), function(index) {
+    matched <- unique(as.character(ss$group[group_design[, index] != 0]))
+    if (length(matched) == 1L) matched[[1L]] else NA_character_
+  }, character(1))
+  names(labels) <- colnames(group_design)
+  labels
+} else character()
+
 group_contrast <- function(contrast_name) {
-  if (!"group" %in% names(ss)) return(NULL)
   terms <- strsplit(contrast_name, "-", fixed = TRUE)[[1]]
-  labels <- as.character(unique(ss$group))
-  names(labels) <- paste0("group", make.names(labels))
-  if (length(terms) != 2L || !all(terms %in% names(labels))) return(NULL)
-  unname(labels[terms])
+  if (length(terms) != 2L || !all(terms %in% names(group_term_labels))) return(NULL)
+  unname(group_term_labels[terms])
 }
 
 add_observed_group_delta <- function(result, contrast_name) {
